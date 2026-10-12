@@ -33,6 +33,9 @@ FLAGS_MAIN=(
 )
 
 cd source
+# x265 adds -march=i686 for 32-bit x86 targets (Emscripten reports x86); clang 20+ rejects
+# -march for wasm32.
+sed -i 's/add_definitions(-march=i686)/# wasm32: no -march/' CMakeLists.txt
 rm -rf build
 mkdir -p build
 cd build

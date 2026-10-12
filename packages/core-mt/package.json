@@ -1,6 +1,6 @@
 {
   "name": "@ffmpeg/core-mt",
-  "version": "0.12.10",
+  "version": "0.13.0-finalcut.1",
   "description": "FFmpeg WebAssembly version (multi thread)",
   "main": "./dist/umd/ffmpeg-core.js",
   "exports": {
@@ -11,10 +11,6 @@
     "./wasm": {
       "import": "./dist/esm/ffmpeg-core.wasm",
       "require": "./dist/umd/ffmpeg-core.wasm"
-    },
-    "./worker": {
-      "import": "./dist/esm/ffmpeg-core.worker.js",
-      "require": "./dist/umd/ffmpeg-core.worker.js"
     }
   },
   "files": [
@@ -22,7 +18,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ffmpegwasm/ffmpeg.wasm.git"
+    "url": "git+https://github.com/yishengjiang99/ffmpeg.wasm.git"
   },
   "keywords": [
     "ffmpeg",

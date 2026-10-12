@@ -16,6 +16,8 @@ import type {
   FFMessageDeleteDirData,
   FFMessageMountData,
   FFMessageUnmountData,
+  OPFSMountData,
+  WorkerFSMountData,
   CallbackData,
   IsFirst,
   OK,
@@ -152,16 +154,41 @@ const deleteDir = ({ path }: FFMessageDeleteDirData): OK => {
   return true;
 };
 
-const mount = ({ fsType, options, mountPoint }: FFMessageMountData): OK => {
+// OPFS mounts: mount point -> open sync access handles (closed on unmount).
+const opfsHandles: Record<string, Record<string, unknown>> = {};
+
+const mount = async ({ fsType, options, mountPoint }: FFMessageMountData): Promise<OK> => {
+  if (fsType === "OPFS") {
+    if (!ffmpeg.opfsOpen) return false;
+    const { dir, files } = options as OPFSMountData;
+    const handles = await ffmpeg.opfsOpen(dir, files);
+    try {
+      // The core registers FS.filesystems.OPFS in opfsOpen(); it is not in the FS typings.
+      const fs = ffmpeg.FS as unknown as {
+        filesystems: Record<string, unknown>;
+        mount: (type: unknown, opts: unknown, mountPoint: string) => void;
+      };
+      fs.mount(fs.filesystems.OPFS, { handles }, mountPoint);
+    } catch (e) {
+      ffmpeg.opfsClose?.(handles);
+      throw e;
+    }
+    opfsHandles[mountPoint] = handles;
+    return true;
+  }
   const str = fsType as keyof typeof ffmpeg.FS.filesystems;
   const fs = ffmpeg.FS.filesystems[str];
   if (!fs) return false;
-  ffmpeg.FS.mount(fs, options, mountPoint);
+  ffmpeg.FS.mount(fs, options as WorkerFSMountData, mountPoint);
   return true;
 };
 
 const unmount = ({ mountPoint }: FFMessageUnmountData): OK => {
   ffmpeg.FS.unmount(mountPoint);
+  if (opfsHandles[mountPoint]) {
+    ffmpeg.opfsClose?.(opfsHandles[mountPoint]);
+    delete opfsHandles[mountPoint];
+  }
   return true;
 };
 
@@ -209,7 +236,7 @@ self.onmessage = async ({
         data = deleteDir(_data as FFMessageDeleteDirData);
         break;
       case FFMessageType.MOUNT:
-        data = mount(_data as FFMessageMountData);
+        data = await mount(_data as FFMessageMountData);
         break;
       case FFMessageType.UNMOUNT:
         data = unmount(_data as FFMessageUnmountData);

@@ -127,6 +127,9 @@ export interface FFmpegCoreModule {
   /** The mt core runs the tool on a pthread and returns a Promise of the exit code. */
   exec: (...args: string[]) => number | Promise<number>;
   ffprobe: (...args: string[]) => number | Promise<number>;
+  /** Open OPFS sync access handles for an OPFS output mount (see bind.js). */
+  opfsOpen?: (dir: string, names: string[]) => Promise<Record<string, unknown>>;
+  opfsClose?: (handles: Record<string, unknown>) => void;
   /** mt core: ask the running exec() to stop; false when there is nothing to cancel. */
   cancel?: () => boolean;
   reset: () => void;

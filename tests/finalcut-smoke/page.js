@@ -77,6 +77,21 @@ window.smoke = async (mode) => {
     check('cancel() stops exec with 255 and the instance stays usable', accepted === true && code === 255 && ms < 10e3 && after.code === 0 && after.bytes > 0, { accepted, code, ms, partialBytes: partial, after });
     check('cancel() when idle returns false', (await ff.cancel()) === false);
   }
+  // OPFS output mount: the encode lands on disk, not in memory, and is readable from the page.
+  try {
+    await ff.createDir('/opfs');
+    await ff.mount('OPFS', { dir: 'ffmpeg-smoke', files: ['o.mp4'] }, '/opfs');
+    const r = await enc('/opfs/o.mp4');
+    const inside = await ff.listDir('/opfs');
+    await ff.unmount('/opfs');
+    const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('ffmpeg-smoke');
+    const file = await (await dir.getFileHandle('o.mp4')).getFile();
+    const head = new TextDecoder('latin1').decode(new Uint8Array(await file.slice(4, 8).arrayBuffer()));
+    await ff.writeFile('back.mp4', new Uint8Array(await file.arrayBuffer()));
+    const pr = await ff.ffprobe(['-v', 'error', '-show_streams', '-of', 'json', 'back.mp4', '-o', 'back.json']);
+    let n = 0; try { n = JSON.parse(await ff.readFile('back.json', 'utf8')).streams.length; } catch {}
+    check('OPFS output mount', r.code === 0 && file.size > 1000 && head === 'ftyp' && pr === 0 && n === 2, { exit: r.code, size: file.size, head, streams: n, listed: inside.map(e => e.name) });
+  } catch (e) { check('OPFS output mount', false, { error: String(e && e.message || e) }); }
   ff.terminate();
   return { mode, version, loadMs, encodeMs: e1.ms, checks };
 };

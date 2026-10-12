@@ -79,6 +79,8 @@ export enum FFFSType {
   IDBFS  = "IDBFS",
   WORKERFS = "WORKERFS",
   PROXYFS = "PROXYFS",
+  /** Output files written straight to the origin private file system (see OPFSMountData). */
+  OPFS = "OPFS",
 }
 
 export type WorkerFSFileEntry =
@@ -94,8 +96,20 @@ export interface WorkerFSMountData {
   files?: WorkerFSFileEntry[];
 }
 
+/**
+ * `mount("OPFS", { dir, files }, "/out")`: ffmpeg writes `/out/<file>` to
+ * `<OPFS root>/<dir>/<file>` on disk instead of memory. Only the listed names can be created.
+ * After `unmount("/out")`, read the result with
+ * `navigator.storage.getDirectory()` -> `getDirectoryHandle(dir)` -> `getFileHandle(file)` -> `getFile()`.
+ */
+export interface OPFSMountData {
+  dir: string;
+  files: string[];
+}
+
 export type FFFSMountOptions =
-  | WorkerFSMountData;
+  | WorkerFSMountData
+  | OPFSMountData;
 
 export interface FFMessageMountData {
   fsType: FFFSType;

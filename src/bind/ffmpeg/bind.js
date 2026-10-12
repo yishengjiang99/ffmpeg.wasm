@@ -202,6 +202,129 @@ function _locateFile(path, prefix) {
   return prefix + path;
 }
 
+/**
+ * OPFS output mount: files that ffmpeg writes straight to the origin private file system
+ * through FileSystemSyncAccessHandle, so a large output never sits in memory (MEMFS keeps it
+ * in this worker's JS heap and readFile copies it again). The caller declares the file names
+ * up front because OPFS handles can only be opened asynchronously:
+ *
+ *   const handles = await core.opfsOpen("my-dir", ["out.mp4"]);
+ *   core.FS.mount(core.FS.filesystems.OPFS, { handles }, "/out");
+ *   await core.exec("-i", ..., "/out/out.mp4");
+ *   core.FS.unmount("/out"); core.opfsClose(handles);
+ *   // then, anywhere in the origin: (await (await navigator.storage.getDirectory())
+ *   //   .getDirectoryHandle("my-dir")).getFileHandle("out.mp4") -> getFile()
+ *
+ * Only the declared names exist in the mount; anything else is ENOENT / EPERM. All FS calls
+ * reach this thread (pthreads proxy them here), which is a dedicated worker, as OPFS needs.
+ */
+const OPFS = {
+  mount(mount) {
+    const root = OPFS.createNode(null, "/", 16384 | 511);
+    root.handles = (mount.opts && mount.opts["handles"]) || {};
+    return root;
+  },
+  createNode(parent, name, mode) {
+    const node = FS.createNode(parent, name, mode, 0);
+    node.node_ops = OPFS.node_ops;
+    node.stream_ops = OPFS.stream_ops;
+    return node;
+  },
+  fileNode(parent, name) {
+    const handle = parent.handles[name];
+    if (!handle) return null;
+    const node = OPFS.createNode(parent, name, 32768 | 438);
+    node.handle = handle;
+    return node;
+  },
+  // read()/write() take the wasm heap view directly; copy only if the browser refuses a view
+  // on shared memory.
+  io(handle, op, view, at) {
+    try {
+      return handle[op](view, { "at": at });
+    } catch (e) {
+      if (!(e instanceof TypeError)) throw e;
+      if (op === "write") return handle.write(view.slice(), { "at": at });
+      const tmp = new Uint8Array(view.length);
+      const n = handle.read(tmp, { "at": at });
+      view.set(tmp.subarray(0, n));
+      return n;
+    }
+  },
+  node_ops: {
+    getattr(node) {
+      const size = node.handle ? node.handle.getSize() : 4096;
+      const now = new Date();
+      return { dev: 1, ino: node.id, mode: node.mode, nlink: 1, uid: 0, gid: 0, rdev: 0, size, atime: now, mtime: now, ctime: now, blksize: 4096, blocks: Math.ceil(size / 4096) };
+    },
+    setattr(node, attr) {
+      if (attr.size !== undefined && node.handle) node.handle.truncate(attr.size);
+    },
+    lookup(parent, name) {
+      const node = OPFS.fileNode(parent, name);
+      if (!node) throw new FS.ErrnoError(44); // ENOENT
+      return node;
+    },
+    mknod(parent, name) {
+      const node = OPFS.fileNode(parent, name);
+      if (!node) throw new FS.ErrnoError(63); // EPERM: not a declared output
+      return node;
+    },
+    unlink(parent, name) {
+      if (parent.handles[name]) parent.handles[name].truncate(0);
+    },
+    readdir(node) {
+      return [".", "..", ...Object.keys(node.handles)];
+    },
+    rename() { throw new FS.ErrnoError(63); },
+    rmdir() { throw new FS.ErrnoError(63); },
+    mkdir() { throw new FS.ErrnoError(63); },
+    symlink() { throw new FS.ErrnoError(63); },
+  },
+  stream_ops: {
+    read(stream, buffer, offset, length, position) {
+      return OPFS.io(stream.node.handle, "read", buffer.subarray(offset, offset + length), position);
+    },
+    write(stream, buffer, offset, length, position) {
+      return OPFS.io(stream.node.handle, "write", buffer.subarray(offset, offset + length), position);
+    },
+    llseek(stream, offset, whence) {
+      let position = offset;
+      if (whence === 1) position += stream.position;
+      else if (whence === 2) position += stream.node.handle.getSize();
+      if (position < 0) throw new FS.ErrnoError(28); // EINVAL
+      return position;
+    },
+  },
+};
+
+async function opfsOpen(dirName, names) {
+  FS.filesystems["OPFS"] = OPFS;
+  const root = await navigator.storage.getDirectory();
+  const dir = await root.getDirectoryHandle(dirName, { create: true });
+  const handles = {};
+  try {
+    for (const name of names) {
+      const file = await dir.getFileHandle(name, { create: true });
+      handles[name] = await file.createSyncAccessHandle();
+      handles[name].truncate(0);
+    }
+  } catch (e) {
+    opfsClose(handles);
+    throw e;
+  }
+  return handles;
+}
+
+function opfsClose(handles) {
+  for (const name of Object.keys(handles)) {
+    try { handles[name].flush(); } catch (e) { /* closing anyway */ }
+    try { handles[name].close(); } catch (e) { /* already closed */ }
+  }
+}
+
+Module["opfsOpen"] = opfsOpen;
+Module["opfsClose"] = opfsClose;
 Module["stringToPtr"] = stringToPtr;
 Module["stringsToPtr"] = stringsToPtr;
 Module["print"] = print;

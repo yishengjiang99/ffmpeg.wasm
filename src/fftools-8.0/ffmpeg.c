@@ -29,6 +29,7 @@
 #include <limits.h>
 #include <stdatomic.h>
 #include <stdint.h>
+#include <emscripten.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -552,6 +553,37 @@ void update_benchmark(const char *fmt, ...)
     }
 }
 
+/* ffmpeg.wasm: progress callback (Module.receiveProgress) and wall-clock timeout
+ * (Module.timeout, ms; -1 = none). */
+EM_JS(void, send_progress, (double progress, double time), {
+    Module.receiveProgress(progress, time);
+});
+
+EM_JS(int, is_timeout, (double diff), {
+    if (Module.timeout === -1) return 0;
+    return Module.timeout <= diff ? 1 : 0;
+});
+
+/* ffmpeg.wasm: print_report's function statics, hoisted so init_globals() can reset them. */
+static int64_t report_last_time = -1;
+static int report_first_report = 1;
+
+/* Progress as a fraction of the longest input; always ends with 1 on the last report. */
+static void wasm_send_progress(int is_last_report, int64_t pts)
+{
+    int64_t duration = -1;
+    int64_t pts_abs = pts == AV_NOPTS_VALUE ? 0 : FFABS(pts);
+    for (int i = 0; i < nb_input_files; i++) {
+        int64_t d = input_files[i]->ctx ? input_files[i]->ctx->duration : -1;
+        if (d > duration)
+            duration = d;
+    }
+    if (is_last_report)
+        send_progress(1, (double)pts_abs);
+    else if (duration > 0)
+        send_progress((double)pts_abs / (double)duration, (double)pts_abs);
+}
+
 static void print_report(int is_last_report, int64_t timer_start, int64_t cur_time, int64_t pts)
 {
     AVBPrint buf, buf_script;
@@ -559,14 +591,16 @@ static void print_report(int is_last_report, int64_t timer_start, int64_t cur_ti
     int vid;
     double bitrate;
     double speed;
-    static int64_t last_time = -1;
-    static int first_report = 1;
+#define last_time    report_last_time
+#define first_report report_first_report
     uint64_t nb_frames_dup = 0, nb_frames_drop = 0;
     int mins, secs, ms, us;
     int64_t hours;
     const char *hours_sign;
     int ret;
     float t;
+
+    wasm_send_progress(is_last_report, pts);
 
     if (!print_stats && !is_last_report && !progress_avio)
         return;
@@ -687,7 +721,8 @@ static void print_report(int is_last_report, int64_t timer_start, int64_t cur_ti
     av_bprintf(&buf, " elapsed=%"PRId64":%02d:%02d.%02d", hours, mins, secs, ms / 10);
 
     if (print_stats || is_last_report) {
-        const char end = is_last_report ? '\n' : '\r';
+        /* ffmpeg.wasm: one log line per report (the log callback is line based). */
+        const char end = '\n';
         if (print_stats==1 && AV_LOG_INFO > av_log_get_level()) {
             fprintf(stderr, "%s    %c", buf.str, end);
         } else
@@ -790,6 +825,9 @@ static void print_stream_maps(void)
     }
 }
 
+#undef last_time
+#undef first_report
+
 static void set_tty_echo(int on)
 {
 #if HAVE_TERMIOS_H
@@ -867,6 +905,8 @@ static int check_keyboard_interaction(int64_t cur_time)
 /*
  * The following code is the main loop of the file converter
  */
+static int wasm_timed_out = 0;
+
 static int transcode(Scheduler *sch)
 {
     int ret = 0;
@@ -891,6 +931,13 @@ static int transcode(Scheduler *sch)
 
         if (received_nb_signals)
             break;
+
+        /* ffmpeg.wasm: Module.timeout */
+        if (is_timeout((double)((cur_time - timer_start) / 1000))) {
+            av_log(NULL, AV_LOG_ERROR, "ffmpeg.wasm: timeout reached, stopping\n");
+            wasm_timed_out = 1;
+            break;
+        }
 
         /* if 'q' pressed, exits */
         if (stdin_interaction)
@@ -961,9 +1008,38 @@ static int64_t getmaxrss(void)
 #endif
 }
 
-int main(int argc, char **argv)
+/* ffmpeg.wasm: reset the file-level state that native ffmpeg gets fresh from a new process,
+ * so ffmpeg() can be called many times in one wasm instance. */
+static void init_globals(void)
+{
+    atomic_store(&nb_output_dumped, 0);
+    progress_avio = NULL;
+    input_files = NULL;
+    nb_input_files = 0;
+    output_files = NULL;
+    nb_output_files = 0;
+    filtergraphs = NULL;
+    nb_filtergraphs = 0;
+    decoders = NULL;
+    nb_decoders = 0;
+    received_sigterm = 0;
+    received_nb_signals = 0;
+    atomic_store(&transcode_init_done, 0);
+    ffmpeg_exited = 0;
+    copy_ts_first_pts = AV_NOPTS_VALUE;
+    report_last_time = -1;
+    report_first_report = 1;
+    wasm_timed_out = 0;
+}
+
+/* ffmpeg() is main() renamed (main is special-cased by emscripten, and with pthreads a
+ * proxied main would be used). Called from src/bind/ffmpeg/bind.js; the return value is the
+ * exit code (negative AVERROR codes are mapped to 1, like a failing native run). */
+int ffmpeg(int argc, char **argv)
 {
     Scheduler *sch = NULL;
+
+    init_globals();
 
     int ret;
     BenchmarkTimeStamps ti;
@@ -1021,6 +1097,8 @@ int main(int argc, char **argv)
 
     ret = received_nb_signals                 ? 255 :
           (ret == FFMPEG_ERROR_RATE_EXCEEDED) ?  69 : ret;
+    if (wasm_timed_out)
+        ret = 1;
 
 finish:
     if (ret == AVERROR_EXIT)
@@ -1033,5 +1111,5 @@ finish:
     av_log(NULL, AV_LOG_VERBOSE, "\n");
     av_log(NULL, AV_LOG_VERBOSE, "Exiting with exit code %d\n", ret);
 
-    return ret;
+    return ret < 0 ? 1 : ret;
 }

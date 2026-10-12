@@ -75,12 +75,27 @@ function runTool(fn, args) {
   return Module["ret"];
 }
 
+/**
+ * mt core only: cap the CPU count FFmpeg sizes its automatic thread pools from (decoder frame
+ * threads, every filter graph, lavfi inputs). The tools run on the module's main thread, which
+ * blocks while a job runs, so a pthread_create beyond PTHREAD_POOL_SIZE can never get its
+ * Worker and the job deadlocks. Measured with one x264 encode from two lavfi inputs: passes
+ * with 4 cores, hangs with 8, 12 and 14 (tests/finalcut-smoke/debug.mjs emulates core counts).
+ * A caller's own -cpucount / -threads comes later on the command line and still wins.
+ */
+const MT_CPU_COUNT = 4;
+function threadArgs() {
+  return typeof PThread === "undefined" ? [] : ["-cpucount", String(Math.min(MT_CPU_COUNT, navigator.hardwareConcurrency || MT_CPU_COUNT))];
+}
+
 function exec(..._args) {
-  return runTool(Module["_ffmpeg"], [...Module["DEFAULT_ARGS"], ..._args]);
+  const [prog, ...rest] = Module["DEFAULT_ARGS"];
+  return runTool(Module["_ffmpeg"], [prog, ...threadArgs(), ...rest, ..._args]);
 }
 
 function ffprobe(..._args) {
-  return runTool(Module["_ffprobe"], [...Module["DEFAULT_ARGS_FFPROBE"], ..._args]);
+  const [prog, ...rest] = Module["DEFAULT_ARGS_FFPROBE"];
+  return runTool(Module["_ffprobe"], [prog, ...threadArgs(), ...rest, ..._args]);
 }
 
 function setLogger(logger) {

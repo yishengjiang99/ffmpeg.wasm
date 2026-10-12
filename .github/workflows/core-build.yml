@@ -3,10 +3,9 @@ name: core-build
 # Builds the st (FFmpeg 5.1, no pthreads) and mt (FFmpeg 8.0, pthreads) cores in Docker,
 # writes a manifest per core, smoke-tests both in Chromium through @ffmpeg/ffmpeg 0.12.15 and
 # uploads everything as artifacts. Nothing is published.
+# Manual only: day-to-day builds and smoke tests run locally with scripts/ci-local.sh (same
+# steps, and a many-core dev machine catches thread-pool hangs the 4-vCPU runners cannot).
 on:
-  push:
-    branches: [main, 'phase*']
-  pull_request:
   workflow_dispatch:
 
 permissions:

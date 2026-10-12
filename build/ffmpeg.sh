@@ -2,11 +2,18 @@
 
 set -euo pipefail
 
+# FFmpeg >= 7.1 knows the wasm arch and carries WebAssembly SIMD128 code (8.0: HEVC idct and
+# SAO), which --disable-asm would switch off. Older trees (the st core's 5.1) have neither.
+if [ -d libavutil/wasm ]; then
+  ARCH_FLAGS=(--arch=wasm32 --disable-inline-asm --disable-x86asm)
+else
+  ARCH_FLAGS=(--arch=x86_32 --disable-asm)
+fi
+
 CONF_FLAGS=(
   --target-os=none              # disable target specific configs
-  --arch=x86_32                 # use x86_32 arch
+  "${ARCH_FLAGS[@]}"
   --enable-cross-compile        # use cross compile configs
-  --disable-asm                 # disable asm
   --disable-stripping           # disable stripping as it won't work
   --enable-ffmpeg --enable-ffprobe --disable-ffplay  # fftools objects are built (fftools.mk), not linked
   --disable-doc                 # disable doc build

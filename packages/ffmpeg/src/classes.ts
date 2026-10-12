@@ -70,6 +70,7 @@ export class FFmpeg {
           case FFMessageType.CREATE_DIR:
           case FFMessageType.LIST_DIR:
           case FFMessageType.DELETE_DIR:
+          case FFMessageType.CANCEL:
             this.#resolves[id](data);
             break;
           case FFMessageType.LOG:
@@ -285,6 +286,19 @@ export class FFmpeg {
       undefined,
       signal
     ) as Promise<number>;
+
+  /**
+   * Ask the running `exec()` to stop, like one Ctrl-C: ffmpeg finishes its output and the
+   * exec() Promise resolves with 255. The instance stays loaded and usable.
+   *
+   * Only the multithreaded core can do this (its exec runs on its own thread). Resolves
+   * `false` when nothing was cancelled (idle, ffprobe, or the single-thread core, where this
+   * message is only handled after the job has ended); use `terminate()` then.
+   *
+   * @category FFmpeg
+   */
+  public cancel = (): Promise<boolean> =>
+    this.#send({ type: FFMessageType.CANCEL }) as Promise<boolean>;
 
   /**
    * Terminate all ongoing API calls and terminate web worker.

@@ -1028,6 +1028,16 @@ static void init_globals(void)
     wasm_timed_out = 0;
 }
 
+/* ffmpeg.wasm: cooperative cancel. Called on the module's main thread while the tool runs on
+ * its own pthread (src/bind/ffmpeg/runner.c); same effect as one SIGINT: the interrupt
+ * callback unblocks I/O, transcode() stops, trailers are written and ffmpeg() returns 255. */
+void ffmpeg_cancel(void);
+void ffmpeg_cancel(void)
+{
+    received_sigterm = SIGINT;
+    received_nb_signals++;
+}
+
 /* ffmpeg() is main() renamed (main is special-cased by emscripten, and with pthreads a
  * proxied main would be used). Called from src/bind/ffmpeg/bind.js; the return value is the
  * exit code (negative AVERROR codes are mapped to 1, like a failing native run). */

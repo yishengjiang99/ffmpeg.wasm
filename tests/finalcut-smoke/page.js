@@ -56,6 +56,27 @@ window.smoke = async (mode) => {
     const many = await withTimeout(ff.exec(['-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=30:duration=2', '-c:v', 'libx264', '-preset', 'veryfast', '-threads', '16', 't16.mp4']), 60e3, 'threads 16').catch(e => String(e && e.message || e));
     check('x264 with automatic threads and with -threads 16', a.code === 0 && many === 0, { auto: a, threads16: many });
   }
+  // Wall-clock timeout (ms) passed to exec: the job must stop on its own with a non-zero exit.
+  const LONG = ['-f', 'lavfi', '-i', 'testsrc2=size=1280x720:rate=30:duration=600', '-c:v', 'libx264', '-preset', 'veryfast', '-threads', '4'];
+  let t = performance.now();
+  const to = await withTimeout(ff.exec([...LONG, 'timeout.mp4'], 1500), 30e3, 'exec timeout');
+  check('exec timeout stops the job', to !== 0 && performance.now() - t < 10e3, { exit: to, ms: Math.round(performance.now() - t) });
+  await ff.deleteFile('timeout.mp4').catch(() => {});
+
+  // Cooperative cancel (mt): exec resolves 255 soon after cancel(), and the same instance
+  // runs the next job. On st cancel() cannot run mid-job, so it is not checked there.
+  if (mode === 'mt') {
+    t = performance.now();
+    const job = ff.exec([...LONG, 'cancel.mp4']);
+    await new Promise(r => setTimeout(r, 1500));
+    const accepted = await withTimeout(ff.cancel(), 10e3, 'cancel');
+    const code = await withTimeout(job, 20e3, 'cancelled exec');
+    const ms = Math.round(performance.now() - t);
+    let partial = 0; try { partial = (await ff.readFile('cancel.mp4')).length; } catch {}
+    const after = await enc('after-cancel.mp4');
+    check('cancel() stops exec with 255 and the instance stays usable', accepted === true && code === 255 && ms < 10e3 && after.code === 0 && after.bytes > 0, { accepted, code, ms, partialBytes: partial, after });
+    check('cancel() when idle returns false', (await ff.cancel()) === false);
+  }
   ff.terminate();
   return { mode, version, loadMs, encodeMs: e1.ms, checks };
 };

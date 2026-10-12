@@ -124,8 +124,11 @@ export interface FFmpegCoreModule {
   timeout: number;
   mainScriptUrlOrBlob: string;
 
-  exec: (...args: string[]) => number;
-  ffprobe: (...args: string[]) => number;
+  /** The mt core runs the tool on a pthread and returns a Promise of the exit code. */
+  exec: (...args: string[]) => number | Promise<number>;
+  ffprobe: (...args: string[]) => number | Promise<number>;
+  /** mt core: ask the running exec() to stop; false when there is nothing to cancel. */
+  cancel?: () => boolean;
   reset: () => void;
   setLogger: (logger: (log: Log) => void) => void;
   setTimeout: (timeout: number) => void;

@@ -89,6 +89,20 @@ function runTool(fn, args) {
  * for threads beyond PTHREAD_POOL_SIZE. Needs the fork's @ffmpeg/ffmpeg worker, which awaits
  * the result. One job at a time, as before.
  */
+let runningTool = -1; // 0 = ffmpeg, 1 = ffprobe, -1 = idle
+
+/**
+ * mt core: ask the running ffmpeg job to stop (like one Ctrl-C). The job finishes its output
+ * and exec() resolves with 255; the instance stays usable, no terminate + reload needed.
+ * Returns false when there is nothing to cancel (idle, ffprobe, or the st core, whose exec
+ * blocks this thread).
+ */
+function cancel() {
+  if (runningTool !== 0 || !Module["_ffmpeg_cancel"]) return false;
+  Module["_ffmpeg_cancel"]();
+  return true;
+}
+
 function runToolAsync(tool, args) {
   const argv = stringsToPtr(args);
   return new Promise((resolve, reject) => {
@@ -101,10 +115,12 @@ function runToolAsync(tool, args) {
     };
     self.addEventListener("error", onError);
     Module["toolExit"] = (ret) => {
+      runningTool = -1;
       self.removeEventListener("error", onError);
       Module["ret"] = ret;
       resolve(ret);
     };
+    runningTool = tool;
     const err = Module["_run_tool_async"](tool, args.length, argv);
     if (err) onError({ message: `could not start the tool thread (errno ${err})` });
   });
@@ -199,3 +215,4 @@ Module["setTimeout"] = setTimeout;
 Module["setProgress"] = setProgress;
 Module["reset"] = reset;
 Module["receiveProgress"] = receiveProgress;
+Module["cancel"] = cancel;

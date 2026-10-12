@@ -183,6 +183,10 @@ self.onmessage = async ({
       case FFMessageType.FFPROBE:
         data = await ffprobe(_data as FFMessageExecData);
         break;
+      case FFMessageType.CANCEL:
+        // Only reachable mid-job on the mt core (its exec is async, so this handler runs).
+        data = ffmpeg.cancel ? ffmpeg.cancel() : false;
+        break;
       case FFMessageType.WRITE_FILE:
         data = writeFile(_data as FFMessageWriteFileData);
         break;

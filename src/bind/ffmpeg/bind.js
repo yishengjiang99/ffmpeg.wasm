@@ -52,28 +52,35 @@ function printErr(message) {
     Module["logger"]({ type: "stderr", message });
 }
 
-function exec(..._args) {
-  const args = [...Module["DEFAULT_ARGS"], ..._args];
+/**
+ * Runs `_ffmpeg`/`_ffprobe` and records the exit code in Module["ret"].
+ *
+ * - FFmpeg 5.1's ffmpeg always ends in exit_program() -> abort() after storing the code in
+ *   Module.ret (see src/fftools-5.1/cmdutils.c), so the "Aborted" exception is expected.
+ * - A normal return (ffprobe, and every FFmpeg 8.0 tool) carries the exit code. Before this
+ *   fork ffprobe's return value was dropped and Module.ret stayed -1 on success.
+ * - exit() from C throws ExitStatus; its status is the exit code.
+ */
+function run(fn, args) {
+  const argv = stringsToPtr(args);
   try {
-    Module["_ffmpeg"](args.length, stringsToPtr(args));
+    Module["ret"] = fn(args.length, argv);
   } catch (e) {
-    if (!e.message.startsWith("Aborted")) {
+    if (e && e.name === "ExitStatus") {
+      Module["ret"] = e.status;
+    } else if (!(e && typeof e.message === "string" && e.message.startsWith("Aborted"))) {
       throw e;
     }
   }
   return Module["ret"];
 }
 
+function exec(..._args) {
+  return run(Module["_ffmpeg"], [...Module["DEFAULT_ARGS"], ..._args]);
+}
+
 function ffprobe(..._args) {
-  const args = [...Module["DEFAULT_ARGS_FFPROBE"], ..._args];
-  try {
-    Module["_ffprobe"](args.length, stringsToPtr(args));
-  } catch (e) {
-    if (!e.message.startsWith("Aborted")) {
-      throw e;
-    }
-  }
-  return Module["ret"];
+  return run(Module["_ffprobe"], [...Module["DEFAULT_ARGS_FFPROBE"], ..._args]);
 }
 
 function setLogger(logger) {

@@ -13,7 +13,7 @@ const server = createServer((req, res) => {
   const p = new URL(req.url, 'http://x').pathname;
   const file = p === '/' ? path.join(HERE, 'index.html') : p === '/page.js' ? path.join(HERE, 'page.js')
     : p.startsWith('/core/') ? path.join(path.resolve(coreDir), path.basename(p))
-    : p.startsWith('/node_modules/@ffmpeg/') ? path.join(HERE, p) : null;
+    : p.startsWith('/node_modules/@ffmpeg/ffmpeg/') ? path.join(HERE, '..', '..', 'packages', 'ffmpeg', p.slice('/node_modules/@ffmpeg/ffmpeg/'.length)) : null;
   const h = { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp', 'Cross-Origin-Resource-Policy': 'same-origin' };
   if (!file || !existsSync(file) || !statSync(file).isFile()) { res.writeHead(404, h); return res.end(); }
   res.writeHead(200, { ...h, 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream' });

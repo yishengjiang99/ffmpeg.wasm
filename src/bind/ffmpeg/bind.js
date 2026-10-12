@@ -76,26 +76,54 @@ function runTool(fn, args) {
 }
 
 /**
- * mt core only: cap the CPU count FFmpeg sizes its automatic thread pools from (decoder frame
- * threads, every filter graph, lavfi inputs). The tools run on the module's main thread, which
- * blocks while a job runs, so a pthread_create beyond PTHREAD_POOL_SIZE can never get its
- * Worker and the job deadlocks. Measured with one x264 encode from two lavfi inputs: passes
- * with 4 cores, hangs with 8, 12 and 14 (tests/finalcut-smoke/debug.mjs emulates core counts).
+ * mt core: the tool runs on its own pthread (src/bind/ffmpeg/runner.c) and exec()/ffprobe()
+ * return a Promise of the exit code, so this (main) thread stays free to start the Workers
+ * for threads beyond PTHREAD_POOL_SIZE. Needs the fork's @ffmpeg/ffmpeg worker, which awaits
+ * the result. One job at a time, as before.
+ */
+function runToolAsync(tool, args) {
+  const argv = stringsToPtr(args);
+  return new Promise((resolve, reject) => {
+    // A trap or abort on any pthread (e.g. OOM in the fixed heap) reaches this thread as an
+    // error event. The tool thread will never report an exit code then, so fail the job
+    // instead of hanging; the instance is unusable afterwards and must be terminated.
+    const onError = (ev) => {
+      self.removeEventListener("error", onError);
+      reject(new Error(`ffmpeg core crashed: ${(ev && ev.message) || "worker error"}`));
+    };
+    self.addEventListener("error", onError);
+    Module["toolExit"] = (ret) => {
+      self.removeEventListener("error", onError);
+      Module["ret"] = ret;
+      resolve(ret);
+    };
+    const err = Module["_run_tool_async"](tool, args.length, argv);
+    if (err) onError({ message: `could not start the tool thread (errno ${err})` });
+  });
+}
+
+/**
+ * mt core: cap the CPU count FFmpeg sizes its automatic thread pools from (decoder frame
+ * threads, every filter graph). Every frame thread holds frames in the fixed 1 GB heap:
+ * joining three 720p clips with xfade runs out of memory at 8 "CPUs" and passes at 6.
  * A caller's own -cpucount / -threads comes later on the command line and still wins.
+ * Revisit when the heap can grow.
  */
 const MT_CPU_COUNT = 4;
 function threadArgs() {
-  return typeof PThread === "undefined" ? [] : ["-cpucount", String(Math.min(MT_CPU_COUNT, navigator.hardwareConcurrency || MT_CPU_COUNT))];
+  return ["-cpucount", String(Math.min(MT_CPU_COUNT, navigator.hardwareConcurrency || MT_CPU_COUNT))];
 }
 
 function exec(..._args) {
   const [prog, ...rest] = Module["DEFAULT_ARGS"];
-  return runTool(Module["_ffmpeg"], [prog, ...threadArgs(), ...rest, ..._args]);
+  if (!Module["_run_tool_async"]) return runTool(Module["_ffmpeg"], [prog, ...rest, ..._args]);
+  return runToolAsync(0, [prog, ...threadArgs(), ...rest, ..._args]);
 }
 
 function ffprobe(..._args) {
   const [prog, ...rest] = Module["DEFAULT_ARGS_FFPROBE"];
-  return runTool(Module["_ffprobe"], [prog, ...threadArgs(), ...rest, ..._args]);
+  if (!Module["_run_tool_async"]) return runTool(Module["_ffprobe"], [prog, ...rest, ..._args]);
+  return runToolAsync(1, [prog, ...threadArgs(), ...rest, ..._args]);
 }
 
 function setLogger(logger) {

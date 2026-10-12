@@ -35,6 +35,7 @@ CONF_FLAGS=(
   -sMODULARIZE                             # modularized to use as a library
   ${FFMPEG_MT:+ -sINITIAL_MEMORY=1024MB}   # ALLOW_MEMORY_GROWTH is not recommended when using threads, thus we use a large initial memory
   ${FFMPEG_MT:+ -sPTHREAD_POOL_SIZE=32}    # use 32 threads
+  ${FFMPEG_MT:+ -sPTHREAD_POOL_SIZE_STRICT=0} # more threads than the pool are fine: the tool runs on a pthread (runner.c), so the main thread can start them
   ${FFMPEG_ST:+ -sINITIAL_MEMORY=32MB -sALLOW_MEMORY_GROWTH} # Use just enough memory as memory usage can grow
   -sEXPORT_NAME="$EXPORT_NAME"             # required in browser env, so that user can access this module from window object
   -sEXPORTED_FUNCTIONS=$(node src/bind/ffmpeg/export.js) # exported functions
@@ -43,6 +44,7 @@ CONF_FLAGS=(
   --pre-js src/bind/ffmpeg/bind.js        # extra bindings, contains most of the ffmpeg.wasm javascript code
   # patched fftools (src/fftools-5.1 or src/fftools-8.0), compiled by FFmpeg's build (fftools.mk)
   $(make -s -f fftools.mk print-fftools-objs)
+  ${FFMPEG_MT:+ src/bind/ffmpeg/runner.c}
 )
 
 emcc "${CONF_FLAGS[@]}" $@

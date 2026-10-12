@@ -554,15 +554,11 @@ void update_benchmark(const char *fmt, ...)
 }
 
 /* ffmpeg.wasm: progress callback (Module.receiveProgress) and wall-clock timeout
- * (Module.timeout, ms; -1 = none). */
-EM_JS(void, send_progress, (double progress, double time), {
-    Module.receiveProgress(progress, time);
-});
-
-EM_JS(int, is_timeout, (double diff), {
-    if (Module.timeout === -1) return 0;
-    return Module.timeout <= diff ? 1 : 0;
-});
+ * (Module.timeout, ms; -1 = none). The tool runs on a pthread (src/bind/ffmpeg/runner.c) and
+ * the handlers live on the module's main thread, so both calls are proxied there. */
+/* Defined in runner.c: EM_ASM needs a gnu* dialect and FFmpeg builds with -std=c17. */
+void send_progress(double progress, double time);
+int is_timeout(double diff);
 
 /* ffmpeg.wasm: print_report's function statics, hoisted so init_globals() can reset them. */
 static int64_t report_last_time = -1;

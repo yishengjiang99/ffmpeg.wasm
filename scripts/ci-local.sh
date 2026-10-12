@@ -13,6 +13,10 @@ mkdir -p "$LOGS"
 
 node scripts/check-sources-lock.mjs
 
+# The smoke test drives the cores through this repo's @ffmpeg/ffmpeg (its worker awaits the mt
+# core's async exec), so build it first. Needs `npm ci` at the repo root once.
+(cd packages/ffmpeg && npm run build >/dev/null) || { echo "packages/ffmpeg build failed (run npm ci at the repo root)" >&2; exit 1; }
+
 for mode in $MODES; do
   case $mode in
     mt) ARGS="--build-arg FFMPEG_MT=yes"; OUT=packages/core-mt; CF="-O3 -msimd128 -pthread" ;;

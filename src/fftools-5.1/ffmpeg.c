@@ -4563,7 +4563,7 @@ static int64_t getmaxrss(void)
  * the global varialbes are always re-initialized when calling
  * main() function.
  */
-void init_globals() {
+static void init_globals(void) {
   nb_frames_dup = 0;
   dup_warning = 1000;
   nb_frames_drop = 0;
@@ -4600,13 +4600,14 @@ void init_globals() {
  * One example is that when using multi-threading, a proxy_main() function
  * might be used instead of main().
  */
+int ffmpeg(int argc, char **argv);
 int ffmpeg(int argc, char **argv)
 // int main(int argc, char **argv)
 {
-    init_globals();
-
     int i, ret;
     BenchmarkTimeStamps ti;
+
+    init_globals();
 
     init_dynload();
 

@@ -91,6 +91,11 @@ void register_exit(void (*cb)(int ret))
     program_exit = cb;
 }
 
+/* ffmpeg.wasm: hand the exit code to bind.js (EM_ASM is not allowed in FFmpeg's -std=c17). */
+EM_JS(void, set_module_ret, (int ret), {
+    Module.ret = ret;
+});
+
 void exit_program(int ret)
 {
     if (program_exit)
@@ -108,9 +113,7 @@ void exit_program(int ret)
      * This excpetion is catch and not visible to users.
      *
      */
-    EM_ASM({
-        Module.ret = $0;
-    }, ret);
+    set_module_ret(ret);
     abort();
     // exit(ret);
 }

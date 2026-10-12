@@ -2774,6 +2774,7 @@ static int opt_print_filename(void *optctx, const char *opt, const char *arg)
     return print_input_filename ? 0 : AVERROR(ENOMEM);
 }
 
+void show_help_default_ffprobe(const char *opt, const char *arg);
 void show_help_default_ffprobe(const char *opt, const char *arg)
 {
     av_log_set_callback(log_callback_help);
@@ -3124,6 +3125,7 @@ static void ffprobe_reset_globals(void)
 }
 
 /* main() renamed; returns 0 on success and 1 on failure (native ffprobe's exit code). */
+int ffprobe(int argc, char **argv);
 int ffprobe(int argc, char **argv)
 {
     const AVTextFormatter *f;

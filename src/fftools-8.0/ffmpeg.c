@@ -1035,14 +1035,15 @@ static void init_globals(void)
 /* ffmpeg() is main() renamed (main is special-cased by emscripten, and with pthreads a
  * proxied main would be used). Called from src/bind/ffmpeg/bind.js; the return value is the
  * exit code (negative AVERROR codes are mapped to 1, like a failing native run). */
+int ffmpeg(int argc, char **argv);
 int ffmpeg(int argc, char **argv)
 {
     Scheduler *sch = NULL;
 
-    init_globals();
-
     int ret;
     BenchmarkTimeStamps ti;
+
+    init_globals();
 
     init_dynload();
 

@@ -29,5 +29,12 @@ CONF_FLAGS=(
   ${FFMPEG_ST:+ --disable-pthreads --disable-w32threads --disable-os2threads}
 )
 
+# af_vibrato allocates its delay line with av_malloc_array and reads it before writing
+# (upstream bug, 5.1 through 8.0). Native malloc usually hands back zero pages; in a reused
+# wasm heap it is stale data, which turned into NaN samples ("Input contains (near)
+# NaN/+-Inf" from the aac encoder) after a few jobs in one instance.
+grep -q 's->buf\[c\] = av_malloc_array(s->buf_size, sizeof(\*s->buf\[c\]));' libavfilter/af_vibrato.c
+sed -i 's/s->buf\[c\] = av_malloc_array(s->buf_size, sizeof(\*s->buf\[c\]));/s->buf[c] = av_calloc(s->buf_size, sizeof(*s->buf[c]));/' libavfilter/af_vibrato.c
+
 emconfigure ./configure "${CONF_FLAGS[@]}" $@
 emmake make -f fftools.mk -j"$(nproc)" all-yes fftools-objs

@@ -9,7 +9,7 @@ EXPORT_NAME="createFFmpegCore"
 
 CONF_FLAGS=(
   -I. 
-  -I./src/fftools 
+  -I./fftools 
   -I$INSTALL_DIR/include 
   -L$INSTALL_DIR/lib 
   -Llibavcodec 
@@ -17,7 +17,6 @@ CONF_FLAGS=(
   -Llibavfilter 
   -Llibavformat 
   -Llibavutil 
-  -Llibpostproc 
   -Llibswresample 
   -Llibswscale 
   -lavcodec 
@@ -25,14 +24,13 @@ CONF_FLAGS=(
   -lavfilter 
   -lavformat 
   -lavutil 
-  -lpostproc 
+  $([ -f libpostproc/libpostproc.a ] && echo -Llibpostproc -lpostproc || true)  # FFmpeg <= 7.1 only (removed in 8.0)
   -lswresample 
   -lswscale 
   -Wno-deprecated-declarations 
   $LDFLAGS 
   -sENVIRONMENT=worker
-  -sWASM_BIGINT                            # enable big int support
-  -sUSE_SDL=2                              # use emscripten SDL2 lib port
+  -sWASM_BIGINT                            # enable big int support (default since emsdk 4)
   -sSTACK_SIZE=5MB                         # increase stack size to support libopus
   -sMODULARIZE                             # modularized to use as a library
   ${FFMPEG_MT:+ -sINITIAL_MEMORY=1024MB}   # ALLOW_MEMORY_GROWTH is not recommended when using threads, thus we use a large initial memory
@@ -43,15 +41,8 @@ CONF_FLAGS=(
   -sEXPORTED_RUNTIME_METHODS=$(node src/bind/ffmpeg/export-runtime.js) # exported built-in functions
   -lworkerfs.js
   --pre-js src/bind/ffmpeg/bind.js        # extra bindings, contains most of the ffmpeg.wasm javascript code
-  # ffmpeg source code
-  src/fftools/cmdutils.c 
-  src/fftools/ffmpeg.c 
-  src/fftools/ffmpeg_filter.c 
-  src/fftools/ffmpeg_hw.c 
-  src/fftools/ffmpeg_mux.c 
-  src/fftools/ffmpeg_opt.c 
-  src/fftools/opt_common.c 
-  src/fftools/ffprobe.c 
+  # patched fftools (src/fftools-5.1 or src/fftools-8.0), compiled by FFmpeg's build (fftools.mk)
+  $(make -s -f fftools.mk print-fftools-objs)
 )
 
 emcc "${CONF_FLAGS[@]}" $@

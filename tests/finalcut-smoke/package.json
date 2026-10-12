@@ -1,0 +1,10 @@
+{
+  "name": "finalcut-core-smoke",
+  "private": true,
+  "type": "module",
+  "description": "Browser smoke test for the fork's core builds, through the unchanged @ffmpeg/ffmpeg 0.12 API.",
+  "dependencies": {
+    "@ffmpeg/ffmpeg": "0.12.15",
+    "playwright": "1.63.0"
+  }
+}

@@ -1,12 +1,9 @@
 name: CI
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+  # FinalCut fork: superseded by core-build.yml (this upstream workflow targets the old 5.1-only
+  # build and its mocha suites). Kept for manual runs.
+  workflow_dispatch:
 
 jobs:
   build-core:

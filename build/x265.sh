@@ -4,6 +4,7 @@ set -euo pipefail
 
 BASE_FLAGS=(
   -DCMAKE_TOOLCHAIN_FILE=$EM_TOOLCHAIN_FILE
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5   # CMake 4 dropped compat with cmake_minimum_required < 3.5
   -DENABLE_LIBNUMA=OFF
   -DENABLE_SHARED=OFF
   -DENABLE_CLI=OFF

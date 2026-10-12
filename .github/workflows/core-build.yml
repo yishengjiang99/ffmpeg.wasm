@@ -1,0 +1,67 @@
+name: core-build
+
+# Builds the st (FFmpeg 5.1, no pthreads) and mt (FFmpeg 8.0, pthreads) cores in Docker,
+# writes a manifest per core, smoke-tests both in Chromium through @ffmpeg/ffmpeg 0.12.15 and
+# uploads everything as artifacts. Nothing is published.
+on:
+  push:
+    branches: [main, 'phase*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: core-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lock:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: node scripts/check-sources-lock.mjs
+
+  build:
+    needs: lock
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [st, mt]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build core (${{ matrix.mode }})
+        run: |
+          set -o pipefail
+          if [ "${{ matrix.mode }}" = mt ]; then ARGS="--build-arg FFMPEG_MT=yes"; OUT=packages/core-mt; CF="-O3 -msimd128 -pthread"; else ARGS="--build-arg FFMPEG_ST=yes"; OUT=packages/core; CF="-O3 -msimd128"; fi
+          start=$(date +%s)
+          docker buildx build --progress=plain $ARGS --build-arg EXTRA_CFLAGS="$CF" \
+            --cache-from type=gha,scope=core-${{ matrix.mode }} --cache-to type=gha,scope=core-${{ matrix.mode }},mode=max \
+            -o "$OUT" . 2>&1 | tee build.log | grep -E '^#[0-9]+ (\[|DONE|ERROR)|error:|Error' || true
+          test -f "$OUT/dist/esm/ffmpeg-core.wasm"
+          echo "BUILD_SECONDS=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
+          echo "OUT=$OUT" >> "$GITHUB_ENV"
+      - name: Show build log tail on failure
+        if: failure()
+        run: tail -n 200 build.log || true
+      - name: Manifest
+        run: node scripts/build-manifest.mjs ${{ matrix.mode }} "$OUT/dist" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Smoke test (Chromium, @ffmpeg/ffmpeg 0.12.15)
+        working-directory: tests/finalcut-smoke
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          node smoke.mjs ${{ matrix.mode }} "$GITHUB_WORKSPACE/$OUT/dist/esm"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: core-${{ matrix.mode }}
+          path: |
+            ${{ env.OUT }}/dist
+            tests/finalcut-smoke/smoke-${{ matrix.mode }}.json
+            build.log
+          if-no-files-found: warn

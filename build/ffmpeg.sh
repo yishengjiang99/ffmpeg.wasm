@@ -8,7 +8,7 @@ CONF_FLAGS=(
   --enable-cross-compile        # use cross compile configs
   --disable-asm                 # disable asm
   --disable-stripping           # disable stripping as it won't work
-  --disable-programs            # disable ffmpeg, ffprobe and ffplay build
+  --enable-ffmpeg --enable-ffprobe --disable-ffplay  # fftools objects are built (fftools.mk), not linked
   --disable-doc                 # disable doc build
   --disable-debug               # disable debug mode
   --disable-runtime-cpudetect   # disable cpu detection
@@ -30,4 +30,4 @@ CONF_FLAGS=(
 )
 
 emconfigure ./configure "${CONF_FLAGS[@]}" $@
-emmake make -j
+emmake make -f fftools.mk -j"$(nproc)" all-yes fftools-objs

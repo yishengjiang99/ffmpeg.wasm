@@ -61,7 +61,7 @@ function printErr(message) {
  *   fork ffprobe's return value was dropped and Module.ret stayed -1 on success.
  * - exit() from C throws ExitStatus; its status is the exit code.
  */
-function run(fn, args) {
+function runTool(fn, args) {
   const argv = stringsToPtr(args);
   try {
     Module["ret"] = fn(args.length, argv);
@@ -76,11 +76,11 @@ function run(fn, args) {
 }
 
 function exec(..._args) {
-  return run(Module["_ffmpeg"], [...Module["DEFAULT_ARGS"], ..._args]);
+  return runTool(Module["_ffmpeg"], [...Module["DEFAULT_ARGS"], ..._args]);
 }
 
 function ffprobe(..._args) {
-  return run(Module["_ffprobe"], [...Module["DEFAULT_ARGS_FFPROBE"], ..._args]);
+  return runTool(Module["_ffprobe"], [...Module["DEFAULT_ARGS_FFPROBE"], ..._args]);
 }
 
 function setLogger(logger) {

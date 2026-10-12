@@ -1,7 +1,8 @@
 // Smoke checks for one core build via @ffmpeg/ffmpeg 0.12.15 (the API FinalCut uses).
 import { FFmpeg } from '/node_modules/@ffmpeg/ffmpeg/dist/esm/index.js';
 
-const withTimeout = (p, ms, what) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(`${what}: timeout ${ms} ms`)), ms))]);
+let LOG = [];
+const withTimeout = (p, ms, what) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(`${what}: timeout ${ms} ms; log tail: ${LOG.slice(-12).join(' | ')}`)), ms))]);
 
 window.smoke = async (mode) => {
   const base = `${location.origin}/core/`;
@@ -9,6 +10,7 @@ window.smoke = async (mode) => {
   const check = (name, ok, detail) => checks.push({ name, ok: !!ok, detail });
   const ff = new FFmpeg();
   const log = [];
+  LOG = log;
   let progress = 0;
   ff.on('log', ({ message }) => log.push(message));
   ff.on('progress', ({ progress: p }) => { progress = Math.max(progress, p); });
@@ -26,7 +28,7 @@ window.smoke = async (mode) => {
   const enc = async (out, extra = []) => {
     log.length = 0;
     const t = performance.now();
-    const code = await withTimeout(ff.exec(['-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=30:duration=2', '-f', 'lavfi', '-i', 'sine=f=440:d=2', '-c:v', 'libx264', '-preset', 'veryfast', ...T, ...extra, '-c:a', 'aac', '-shortest', out]), 120e3, out);
+    const code = await withTimeout(ff.exec(['-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=30:duration=2', '-f', 'lavfi', '-i', 'sine=f=440:d=2', '-c:v', 'libx264', '-preset', 'veryfast', ...T, ...extra, '-c:a', 'aac', '-shortest', out]), 60e3, out);
     let bytes = 0; try { bytes = (await ff.readFile(out)).length; } catch {}
     return { code, bytes, ms: Math.round(performance.now() - t), tail: code === 0 ? undefined : log.slice(-5) };
   };

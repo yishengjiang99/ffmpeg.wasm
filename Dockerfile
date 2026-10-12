@@ -120,6 +120,8 @@ RUN bash -x /src/build.sh
 
 # harfbuzz: https://github.com/harfbuzz/harfbuzz @ 5.2.0 (4a1d891c6317d2c83e5f3c2607ec5f5ccedffcde)
 FROM emsdk-base AS harfbuzz-builder
+# mt: harfbuzz is built with FreeType (hb-ft) so FFmpeg 8's drawtext can use it.
+COPY --from=freetype2-builder $INSTALL_DIR $INSTALL_DIR
 ADD --checksum=sha256:69ba7c7a42643a3654781242016dd09245cab7353fc2a02cecb710e479c9a881 https://codeload.github.com/harfbuzz/harfbuzz/tar.gz/4a1d891c6317d2c83e5f3c2607ec5f5ccedffcde /tmp/src.tar.gz
 RUN mkdir -p /src && tar xzf /tmp/src.tar.gz -C /src --strip-components=1 && rm /tmp/src.tar.gz
 COPY build/harfbuzz.sh /src/build.sh

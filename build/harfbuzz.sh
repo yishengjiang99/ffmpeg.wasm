@@ -15,8 +15,14 @@ CONF_FLAGS=(
   --prefix=$INSTALL_DIR                                 # install library in a build directory for FFmpeg to include
   --host=i686-gnu                                     # use i686 linux
   --enable-shared=no                                  # not to build shared library
-  --enable-static 
+  --enable-static
 )
+# FFmpeg >= 6.1 drawtext needs hb-ft (harfbuzz with FreeType); only the mt core (FFmpeg 8) uses it.
+if [[ "$FFMPEG_MT" == "yes" ]]; then
+  CONF_FLAGS+=(--with-freetype=yes)
+else
+  CONF_FLAGS+=(--with-freetype=no)
+fi
 
 emconfigure ./autogen.sh "${CONF_FLAGS[@]}"
 emmake make install -j

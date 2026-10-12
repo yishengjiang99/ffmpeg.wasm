@@ -2,6 +2,14 @@
  * Constants
  */
 
+// WebKit: with the tool on a pthread, jobs intermittently hung mid-run (soak: 2 of 3 runs),
+// waiting for this thread to serve a proxied call. Emscripten wakes a thread's mailbox with
+// Atomics.waitAsync where it exists; without it, with postMessage. Use the latter outside
+// Chromium. Runs in every thread before the runtime starts (pre-js).
+if (typeof navigator !== "undefined" && !/Chrom(e|ium)\//.test(navigator.userAgent || "")) {
+  try { delete Atomics.waitAsync; } catch (e) { /* not configurable: keep the native one */ }
+}
+
 const NULL = 0;
 const SIZE_I32 = Uint32Array.BYTES_PER_ELEMENT;
 const DEFAULT_ARGS = ["./ffmpeg", "-nostdin", "-y"];

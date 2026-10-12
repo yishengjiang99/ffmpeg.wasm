@@ -120,6 +120,8 @@ RUN bash -x /src/build.sh
 
 # harfbuzz: https://github.com/harfbuzz/harfbuzz @ 5.2.0 (4a1d891c6317d2c83e5f3c2607ec5f5ccedffcde)
 FROM emsdk-base AS harfbuzz-builder
+# mt: harfbuzz is built with FreeType (hb-ft) so FFmpeg 8's drawtext can use it.
+COPY --from=freetype2-builder $INSTALL_DIR $INSTALL_DIR
 ADD --checksum=sha256:69ba7c7a42643a3654781242016dd09245cab7353fc2a02cecb710e479c9a881 https://codeload.github.com/harfbuzz/harfbuzz/tar.gz/4a1d891c6317d2c83e5f3c2607ec5f5ccedffcde /tmp/src.tar.gz
 RUN mkdir -p /src && tar xzf /tmp/src.tar.gz -C /src --strip-components=1 && rm /tmp/src.tar.gz
 COPY build/harfbuzz.sh /src/build.sh
@@ -153,7 +155,8 @@ FROM emsdk-base AS ffmpeg-src-mt
 ADD --checksum=sha256:05ee0b03119b45c0bdb4df654b96802e909e0a752f72e4fe3794f487229e5a41 https://ffmpeg.org/releases/ffmpeg-8.0.1.tar.xz /tmp/ffmpeg.tar.xz
 RUN mkdir -p /src && tar xJf /tmp/ffmpeg.tar.xz -C /src --strip-components=1 && rm /tmp/ffmpeg.tar.xz
 COPY src/fftools-8.0 /src/fftools-wasm
-ENV FFMPEG_EXTRA_CONF="--disable-resource-compression"
+# drawtext needs libharfbuzz since FFmpeg 6.1 (harfbuzz is already built for libass).
+ENV FFMPEG_EXTRA_CONF="--disable-resource-compression --enable-libharfbuzz"
 
 FROM ffmpeg-src-${FFMPEG_MT:+mt}${FFMPEG_ST:+st} AS ffmpeg-base
 # The patched fftools replace FFmpeg's own (only the files we carry; the build system's

@@ -49,6 +49,10 @@ jobs:
         run: tail -n 200 build.log || true
       - name: Manifest
         run: node scripts/build-manifest.mjs ${{ matrix.mode }} "$OUT/dist" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Build packages/ffmpeg (the smoke test serves it)
+        run: |
+          npm install --no-audit --no-fund --no-save   # root lockfile is out of sync (apps/ workspaces)
+          (cd packages/ffmpeg && npm run build)
       - name: Smoke test (Chromium, @ffmpeg/ffmpeg 0.12.15)
         working-directory: tests/finalcut-smoke
         run: |

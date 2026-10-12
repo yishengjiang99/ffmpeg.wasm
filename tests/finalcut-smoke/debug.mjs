@@ -24,7 +24,7 @@ window.run = async (args, timeoutMs, files) => {
   await ff.load({ coreURL: location.origin + '/core/ffmpeg-core.js', wasmURL: location.origin + '/core/ffmpeg-core.wasm' });
   for (const f of files) await ff.writeFile(f, new Uint8Array(await (await fetch('/fx/' + f)).arrayBuffer()));
   const t0 = performance.now();
-  const exit = await Promise.race([ff.exec(args), new Promise(r => setTimeout(() => r('TIMEOUT'), timeoutMs))]);
+  const exit = await Promise.race([ff.exec(args).catch(e => 'ERROR ' + (e && e.message || e)), new Promise(r => setTimeout(() => r('TIMEOUT'), timeoutMs))]);
   ff.terminate();
   return { exit, ms: Math.round(performance.now() - t0), cores: navigator.hardwareConcurrency, log };
 };

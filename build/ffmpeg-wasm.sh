@@ -33,8 +33,9 @@ CONF_FLAGS=(
   -sWASM_BIGINT                            # enable big int support (default since emsdk 4)
   -sSTACK_SIZE=5MB                         # increase stack size to support libopus
   -sMODULARIZE                             # modularized to use as a library
-  ${FFMPEG_MT:+ -sINITIAL_MEMORY=1024MB}   # ALLOW_MEMORY_GROWTH is not recommended when using threads, thus we use a large initial memory
-  ${FFMPEG_MT:+ -sPTHREAD_POOL_SIZE=32}    # use 32 threads
+  # mt: a growable shared heap (was a fixed 1 GB, which iOS Safari refused and which capped clip size)
+  ${FFMPEG_MT:+ -sINITIAL_MEMORY=256MB -sALLOW_MEMORY_GROWTH -sMAXIMUM_MEMORY=4GB -Wno-pthreads-mem-growth}
+  ${FFMPEG_MT:+ -sPTHREAD_POOL_SIZE=4}     # pre-spawned Workers; more start on demand (pool 4, 12 and 32 bench the same, 4 loads fastest)
   ${FFMPEG_MT:+ -sPTHREAD_POOL_SIZE_STRICT=0} # more threads than the pool are fine: the tool runs on a pthread (runner.c), so the main thread can start them
   ${FFMPEG_ST:+ -sINITIAL_MEMORY=32MB -sALLOW_MEMORY_GROWTH} # Use just enough memory as memory usage can grow
   -sEXPORT_NAME="$EXPORT_NAME"             # required in browser env, so that user can access this module from window object

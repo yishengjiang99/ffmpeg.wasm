@@ -24,8 +24,7 @@ window.smoke = async (mode) => {
   const version = (log.find(l => /^ffmpeg version/.test(l)) || '').trim();
   check('-version exits 0', v === 0, { exit: v, version });
 
-  const T = mode === 'mt' ? ['-threads', '4'] : [];
-  const enc = async (out, extra = []) => {
+  const enc = async (out, extra = [], T = mode === 'mt' && out !== 'auto.mp4' ? ['-threads', '4'] : []) => {
     log.length = 0;
     const t = performance.now();
     const code = await withTimeout(ff.exec(['-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=30:duration=2', '-f', 'lavfi', '-i', 'sine=f=440:d=2', '-c:v', 'libx264', '-preset', 'veryfast', ...T, ...extra, '-c:a', 'aac', '-shortest', out]), 60e3, out);
@@ -50,13 +49,14 @@ window.smoke = async (mode) => {
   for (let i = 0; i < 15; i++) { const r = await enc(`r${i}.mp4`); runs.push(r.code); await ff.deleteFile(`r${i}.mp4`).catch(() => {}); if (r.code !== 0) break; }
   check('15 encodes in one instance', runs.length === 15 && runs.every(c => c === 0), { runs });
 
-  // Info only (Phase 2 target): x264 with automatic threads hung on core-mt 0.12.10.
-  let autoThreads = null;
+  // x264 choosing its own thread count: hung on core-mt 0.12.10; trapped with 6+ threads until
+  // slicetype_slice_cost got the thread pool's signature (build/x264.sh).
   if (mode === 'mt') {
-    try { const r = await withTimeout(ff.exec(['-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=30:duration=2', '-c:v', 'libx264', '-preset', 'veryfast', 'auto.mp4']), 60e3, 'auto threads'); autoThreads = { exit: r }; }
-    catch (e) { autoThreads = { error: String(e.message) }; }
+    const a = await enc('auto.mp4').catch(e => ({ code: -1, error: String(e && e.message || e) }));
+    const many = await withTimeout(ff.exec(['-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=30:duration=2', '-c:v', 'libx264', '-preset', 'veryfast', '-threads', '16', 't16.mp4']), 60e3, 'threads 16').catch(e => String(e && e.message || e));
+    check('x264 with automatic threads and with -threads 16', a.code === 0 && many === 0, { auto: a, threads16: many });
   }
   ff.terminate();
-  return { mode, version, loadMs, encodeMs: e1.ms, checks, info: { x264AutoThreads: autoThreads } };
+  return { mode, version, loadMs, encodeMs: e1.ms, checks };
 };
 window.smokeReady = true;

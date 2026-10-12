@@ -31,12 +31,12 @@
   "components": [
     {
       "id": "x264",
-      "repository": "https://github.com/ffmpegwasm/x264",
-      "ref": "4-cores",
-      "commit": "33cac6b77d5b9259c552156013a817ab23119612",
-      "url": "https://codeload.github.com/ffmpegwasm/x264/tar.gz/33cac6b77d5b9259c552156013a817ab23119612",
-      "sha256": "75434a5a1f2d7d4314821c6054dd300731d69e2fa73314ba4a5ec9df38d4ec80",
-      "bytes": 942903,
+      "repository": "https://code.videolan.org/videolan/x264",
+      "ref": "stable",
+      "commit": "b35605ace3ddf7c1a5d67a2eb553f034aef41d55",
+      "url": "https://code.videolan.org/videolan/x264/-/archive/b35605ace3ddf7c1a5d67a2eb553f034aef41d55/x264-b35605ace3ddf7c1a5d67a2eb553f034aef41d55.tar.gz",
+      "sha256": "cd71a7515b0e9a012e1ac9b1f8415bebcaf6fc97d4db32286642ac4c0fbe24f9",
+      "bytes": 1040327,
       "license": "GPL-2.0-or-later"
     },
     {

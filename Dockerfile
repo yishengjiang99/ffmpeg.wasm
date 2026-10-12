@@ -31,9 +31,9 @@ ENV FFMPEG_MT=$FFMPEG_MT
 RUN apt-get update && \
       apt-get install -y pkg-config autoconf automake libtool ragel xz-utils
 
-# x264: https://github.com/ffmpegwasm/x264 @ 4-cores (33cac6b77d5b9259c552156013a817ab23119612)
+# x264: https://code.videolan.org/videolan/x264 @ stable (b35605ace3ddf7c1a5d67a2eb553f034aef41d55), upstream (was ffmpegwasm/x264 4-cores)
 FROM emsdk-base AS x264-builder
-ADD --checksum=sha256:75434a5a1f2d7d4314821c6054dd300731d69e2fa73314ba4a5ec9df38d4ec80 https://codeload.github.com/ffmpegwasm/x264/tar.gz/33cac6b77d5b9259c552156013a817ab23119612 /tmp/src.tar.gz
+ADD --checksum=sha256:cd71a7515b0e9a012e1ac9b1f8415bebcaf6fc97d4db32286642ac4c0fbe24f9 https://code.videolan.org/videolan/x264/-/archive/b35605ace3ddf7c1a5d67a2eb553f034aef41d55/x264-b35605ace3ddf7c1a5d67a2eb553f034aef41d55.tar.gz /tmp/src.tar.gz
 RUN mkdir -p /src && tar xzf /tmp/src.tar.gz -C /src --strip-components=1 && rm /tmp/src.tar.gz
 COPY build/x264.sh /src/build.sh
 RUN bash -x /src/build.sh

@@ -1,6 +1,6 @@
 {
   "name": "@ffmpeg/ffmpeg",
-  "version": "0.13.0-finalcut.1",
+  "version": "0.13.0-finalcut.2",
   "description": "FFmpeg WebAssembly version for browser",
   "main": "./dist/umd/ffmpeg.js",
   "types": "./dist/esm/index.d.ts",

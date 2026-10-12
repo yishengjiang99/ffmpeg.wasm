@@ -7,6 +7,7 @@ CONF_FLAGS=(
   --host=x86_64-gnu                                   # use i686 linux
   --enable-shared=no                                  # not to build shared library
   --without-harfbuzz                                  # disable harfbuzz as incompatible
+  --without-zlib --without-png --without-bzip2 --without-brotli  # same result in or out of Docker (no system deps picked up)
 )
 emconfigure ./autogen.sh
 emconfigure ./configure "${CONF_FLAGS[@]}"

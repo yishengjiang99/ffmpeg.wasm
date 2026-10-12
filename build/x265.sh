@@ -4,6 +4,7 @@ set -euo pipefail
 
 BASE_FLAGS=(
   -DCMAKE_TOOLCHAIN_FILE=$EM_TOOLCHAIN_FILE
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5   # CMake 4 dropped compat with cmake_minimum_required < 3.5
   -DENABLE_LIBNUMA=OFF
   -DENABLE_SHARED=OFF
   -DENABLE_CLI=OFF
@@ -32,6 +33,9 @@ FLAGS_MAIN=(
 )
 
 cd source
+# x265 adds -march=i686 for 32-bit x86 targets (Emscripten reports x86); clang 20+ rejects
+# -march for wasm32.
+sed -i 's/add_definitions(-march=i686)/# wasm32: no -march/' CMakeLists.txt
 rm -rf build
 mkdir -p build
 cd build

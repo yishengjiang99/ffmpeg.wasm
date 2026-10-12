@@ -91,6 +91,11 @@ void register_exit(void (*cb)(int ret))
     program_exit = cb;
 }
 
+/* ffmpeg.wasm: hand the exit code to bind.js (EM_ASM is not allowed in FFmpeg's -std=c17). */
+EM_JS(void, set_module_ret, (int ret), {
+    Module.ret = ret;
+});
+
 void exit_program(int ret)
 {
     if (program_exit)
@@ -108,9 +113,7 @@ void exit_program(int ret)
      * This excpetion is catch and not visible to users.
      *
      */
-    EM_ASM({
-        Module.ret = $0;
-    }, ret);
+    set_module_ret(ret);
     abort();
     // exit(ret);
 }
@@ -523,7 +526,7 @@ static const AVOption *opt_find(void *obj, const char *name, const char *unit,
     return o;
 }
 
-#define FLAGS (o->type == AV_OPT_TYPE_FLAGS && (arg[0]=='-' || arg[0]=='+')) ? AV_DICT_APPEND : 0
+#define FLAGS ((o->type == AV_OPT_TYPE_FLAGS && (arg[0]=='-' || arg[0]=='+')) ? AV_DICT_APPEND : 0)
 int opt_default(void *optctx, const char *opt, const char *arg)
 {
     const AVOption *o;

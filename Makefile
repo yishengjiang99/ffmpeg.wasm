@@ -1,6 +1,6 @@
 all: dev
 
-MT_FLAGS := -sUSE_PTHREADS -pthread
+MT_FLAGS := -pthread
 
 DEV_ARGS := --progress=plain
 

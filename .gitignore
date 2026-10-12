@@ -8,3 +8,5 @@ dist
 
 # Local Netlify folder
 .netlify
+.build-local/
+.ci-local/

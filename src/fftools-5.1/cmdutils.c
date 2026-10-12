@@ -24,7 +24,6 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <math.h>
-#include <emscripten.h>
 
 /* Include only the enabled headers since some compilers (namely, Sun
    Studio) will not omit unused inline functions and create undefined
@@ -96,23 +95,7 @@ void exit_program(int ret)
     if (program_exit)
         program_exit(ret);
 
-    /*
-     * abort() is used instead of exit() because exit() not only
-     * terminates ffmpeg but also the whole node.js program, which 
-     * is not ideal.
-     *
-     * abort() terminiates the ffmpeg with an JS exception
-     *
-     *   RuntimeError: Aborted...
-     *
-     * This excpetion is catch and not visible to users.
-     *
-     */
-    EM_ASM({
-        Module.ret = $0;
-    }, ret);
-    abort();
-    // exit(ret);
+    exit(ret);
 }
 
 double parse_number_or_die(const char *context, const char *numstr, int type,
@@ -523,7 +506,7 @@ static const AVOption *opt_find(void *obj, const char *name, const char *unit,
     return o;
 }
 
-#define FLAGS (o->type == AV_OPT_TYPE_FLAGS && (arg[0]=='-' || arg[0]=='+')) ? AV_DICT_APPEND : 0
+#define FLAGS ((o->type == AV_OPT_TYPE_FLAGS && (arg[0]=='-' || arg[0]=='+')) ? AV_DICT_APPEND : 0)
 int opt_default(void *optctx, const char *opt, const char *arg)
 {
     const AVOption *o;

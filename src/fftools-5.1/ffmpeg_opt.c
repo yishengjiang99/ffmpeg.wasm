@@ -475,6 +475,8 @@ static int opt_map(void *optctx, const char *opt, const char *arg)
             for (i = 0; i < o->nb_stream_maps; i++) {
                 m = &o->stream_maps[i];
                 if (file_idx == m->file_index &&
+                    m->stream_index >= 0 &&
+                    m->stream_index < input_files[m->file_index]->nb_streams &&
                     check_stream_specifier(input_files[m->file_index]->ctx,
                                            input_files[m->file_index]->ctx->streams[m->stream_index],
                                            *p == ':' ? p + 1 : p) > 0)
@@ -898,8 +900,11 @@ static void add_input_streams(OptionsContext *o, AVFormatContext *ic)
         MATCH_PER_STREAM_OPT(codec_tags, str, codec_tag, ic, st);
         if (codec_tag) {
             uint32_t tag = strtol(codec_tag, &next, 0);
-            if (*next)
-                tag = AV_RL32(codec_tag);
+            if (*next) {
+                uint8_t buf[4] = { 0 };
+                memcpy(buf, codec_tag, FFMIN(sizeof(buf), strlen(codec_tag)));
+                tag = AV_RL32(buf);
+            }
             st->codecpar->codec_tag = tag;
         }
 
@@ -1660,8 +1665,11 @@ static OutputStream *new_output_stream(OptionsContext *o, AVFormatContext *oc, e
     MATCH_PER_STREAM_OPT(codec_tags, str, codec_tag, oc, st);
     if (codec_tag) {
         uint32_t tag = strtol(codec_tag, &next, 0);
-        if (*next)
-            tag = AV_RL32(codec_tag);
+        if (*next) {
+            uint8_t buf[4] = { 0 };
+            memcpy(buf, codec_tag, FFMIN(sizeof(buf), strlen(codec_tag)));
+            tag = AV_RL32(buf);
+        }
         ost->st->codecpar->codec_tag =
         ost->enc_ctx->codec_tag = tag;
     }
@@ -2048,6 +2056,7 @@ static OutputStream *new_audio_stream(OptionsContext *o, AVFormatContext *oc, in
         int channels = 0;
         char *layout = NULL;
         char *sample_fmt = NULL;
+        const char *apad = NULL;
 
         MATCH_PER_STREAM_OPT(audio_channels, i, channels, oc, st);
         if (channels) {
@@ -2085,8 +2094,12 @@ static OutputStream *new_audio_stream(OptionsContext *o, AVFormatContext *oc, in
 
         MATCH_PER_STREAM_OPT(audio_sample_rate, i, audio_enc->sample_rate, oc, st);
 
-        MATCH_PER_STREAM_OPT(apad, str, ost->apad, oc, st);
-        ost->apad = av_strdup(ost->apad);
+        MATCH_PER_STREAM_OPT(apad, str, apad, oc, st);
+        if (apad) {
+            ost->apad = av_strdup(apad);
+            if (!ost->apad)
+                exit_program(1);
+        }
 
         ost->avfilter = get_ost_filters(o, oc, ost);
         if (!ost->avfilter)
@@ -3256,6 +3269,12 @@ static int opt_preset(void *optctx, const char *opt, const char *arg)
     FILE *f=NULL;
     char filename[1000], line[1000], tmp_line[1000];
     const char *codec_name = NULL;
+    int depth = o->depth;
+
+    if (depth > 2) {
+        av_log(NULL, AV_LOG_ERROR, "too deep recursion\n");
+        return AVERROR(EINVAL);
+    }
 
     tmp_line[0] = *opt;
     tmp_line[1] = 0;
@@ -3269,6 +3288,7 @@ static int opt_preset(void *optctx, const char *opt, const char *arg)
         exit_program(1);
     }
 
+    o->depth ++;
     while (fgets(line, sizeof(line), f)) {
         char *key = tmp_line, *value, *endptr;
 
@@ -3293,6 +3313,7 @@ static int opt_preset(void *optctx, const char *opt, const char *arg)
         }
     }
 
+    o->depth = depth;
     fclose(f);
 
     return 0;
